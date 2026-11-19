@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info:
+  title: Orders
+  version: "1.2.0"
+paths:
+  /orders:
+    get:
+      operationId: listOrders
+      responses:
+        "200":
+          description: current orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, total]
+                  properties:
+                    id:
+                      type: string
+                    total:
+                      type: number
+                      format: double
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: one order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: string
