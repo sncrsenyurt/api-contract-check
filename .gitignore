@@ -1,0 +1,5 @@
+node_modules/
+dist/
+contract-out/
+*.log
+.DS_Store
