@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { FlagError, parseFlags, usage } from "./flags.js";
+import { listOperations } from "./operations.js";
 import { loadSpec, SpecError } from "./spec.js";
 
 async function main(): Promise<void> {
@@ -24,9 +25,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  let doc: Record<string, unknown>;
   try {
-    doc = await loadSpec(parsed.spec);
+    const doc = await loadSpec(parsed.spec);
+    const ops = listOperations(doc);
+    const version = String(doc.openapi);
+    const noun = ops.length === 1 ? "operation" : "operations";
+    console.log(`loaded ${version}, ${ops.length} ${noun}`);
+    for (const op of ops) {
+      console.log(`${op.method.toUpperCase()} ${op.path}  ${op.operationId}`);
+    }
   } catch (err) {
     if (err instanceof SpecError) {
       console.error(err.message);
@@ -35,17 +42,6 @@ async function main(): Promise<void> {
     }
     throw err;
   }
-
-  const version = String(doc.openapi);
-  const count = pathCount(doc);
-  const noun = count === 1 ? "path" : "paths";
-  console.log(`loaded ${version}, ${count} ${noun}`);
-}
-
-function pathCount(doc: Record<string, unknown>): number {
-  const paths = doc.paths;
-  if (!paths || typeof paths !== "object" || Array.isArray(paths)) return 0;
-  return Object.keys(paths).length;
 }
 
 main().catch((err: unknown) => {

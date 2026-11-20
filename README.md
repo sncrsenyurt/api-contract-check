@@ -23,4 +23,4 @@ npm test
 npm start -- ./openapi.yaml --base-url https://api.example.com
 ```
 
-Right now the command only parses those flags, loads the document, and checks that it is OpenAPI 3.x. It prints the version and how many paths it found. The live checks are not in yet.
+Right now I load the spec, follow local refs, and print each operation. The live checks are not in yet.
