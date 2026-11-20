@@ -1,0 +1,100 @@
+openapi: 3.0.3
+info:
+  title: Catalog
+  version: "1.0.0"
+paths:
+  /items:
+    parameters:
+      - $ref: "#/components/parameters/Limit"
+      - name: q
+        in: query
+        schema:
+          type: string
+    get:
+      operationId: listItems
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            maximum: 50
+      responses:
+        "200":
+          description: items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewItem"
+      responses:
+        "201":
+          $ref: "#/components/responses/Created"
+  /items/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ItemId"
+    get:
+      operationId: getItem
+      responses:
+        "200":
+          description: one item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+    ItemId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      example: sku_1
+  responses:
+    Created:
+      description: created
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Item"
+  schemas:
+    Money:
+      type: object
+      required: [currency, amount]
+      properties:
+        currency:
+          type: string
+        amount:
+          type: number
+    Item:
+      type: object
+      required: [id, name, price]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price:
+          $ref: "#/components/schemas/Money"
+        related:
+          $ref: "#/components/schemas/Item"
+    NewItem:
+      allOf:
+        - $ref: "#/components/schemas/Money"
+        - type: object
+          properties:
+            name:
+              type: string

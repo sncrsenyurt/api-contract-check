@@ -1,0 +1,122 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Notes",
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/notes": {
+      "parameters": [
+        {
+          "name": "tag",
+          "in": "query",
+          "schema": { "type": "string" }
+        }
+      ],
+      "get": {
+        "parameters": [
+          {
+            "name": "tag",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+          },
+          { "$ref": "#/components/parameters/Page" }
+        ],
+        "responses": {
+          "200": {
+            "description": "notes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Note" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "requestBody": { "$ref": "#/components/requestBodies/Draft" },
+        "responses": {
+          "201": {
+            "description": "saved",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Note" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notes/{noteId}": {
+      "get": {
+        "operationId": "getNote",
+        "parameters": [
+          {
+            "name": "noteId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "one note",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Note" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/Missing" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "requestBodies": {
+      "Draft": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Note" }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Missing": {
+        "description": "not found"
+      }
+    },
+    "schemas": {
+      "Author": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" }
+        }
+      },
+      "Note": {
+        "type": "object",
+        "required": ["id", "body"],
+        "properties": {
+          "id": { "type": "string" },
+          "body": { "type": "string" },
+          "author": { "$ref": "#/components/schemas/Author" },
+          "parent": { "$ref": "#/components/schemas/Note" }
+        }
+      }
+    }
+  }
+}
