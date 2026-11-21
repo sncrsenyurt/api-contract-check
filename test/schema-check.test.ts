@@ -167,6 +167,122 @@ describe("checkAgainstSchema", () => {
     ]);
   });
 
+  it("checks date, email, uuid, uri, and integer formats", () => {
+    expect(checkAgainstSchema("2026-11-21", { format: "date" })).toEqual([]);
+    expect(checkAgainstSchema("2024-02-29", { format: "date" })).toEqual([]);
+    expect(checkAgainstSchema("2026-02-29", { format: "date" })).toEqual([
+      { path: "body", message: "expected date" },
+    ]);
+    expect(checkAgainstSchema("21-11-2026", { format: "date" })).toEqual([
+      { path: "body", message: "expected date" },
+    ]);
+
+    expect(checkAgainstSchema("2026-11-21T04:36:00Z", { format: "date-time" })).toEqual([]);
+    expect(checkAgainstSchema("2026-11-21t04:36:00.120z", { format: "date-time" })).toEqual([]);
+    expect(checkAgainstSchema("2026-11-21T04:36:00+02:00", { format: "date-time" })).toEqual([]);
+    expect(checkAgainstSchema("2026-11-21T04:36:00", { format: "date-time" })).toEqual([
+      { path: "body", message: "expected date-time" },
+    ]);
+    expect(checkAgainstSchema("2026-11-21", { format: "date-time" })).toEqual([
+      { path: "body", message: "expected date-time" },
+    ]);
+
+    expect(checkAgainstSchema("ada@example.com", { format: "email" })).toEqual([]);
+    expect(checkAgainstSchema("ada@localhost", { format: "email" })).toEqual([
+      { path: "body", message: "expected email" },
+    ]);
+    expect(checkAgainstSchema("not an email", { format: "email" })).toEqual([
+      { path: "body", message: "expected email" },
+    ]);
+
+    expect(
+      checkAgainstSchema("550e8400-e29b-41d4-a716-446655440000", { format: "uuid" }),
+    ).toEqual([]);
+    expect(checkAgainstSchema("550e8400e29b41d4a716446655440000", { format: "uuid" })).toEqual([
+      { path: "body", message: "expected uuid" },
+    ]);
+
+    expect(checkAgainstSchema("https://api.example.com/v1", { format: "uri" })).toEqual([]);
+    expect(checkAgainstSchema("mailto:ada@example.com", { format: "uri" })).toEqual([]);
+    expect(checkAgainstSchema("/relative/path", { format: "uri" })).toEqual([
+      { path: "body", message: "expected uri" },
+    ]);
+
+    expect(checkAgainstSchema(2147483647, { type: "integer", format: "int32" })).toEqual([]);
+    expect(checkAgainstSchema(-2147483648, { format: "int32" })).toEqual([]);
+    expect(checkAgainstSchema(2147483648, { type: "integer", format: "int32" })).toEqual([
+      { path: "body", message: "expected int32" },
+    ]);
+    expect(checkAgainstSchema(1.5, { format: "int32" })).toEqual([
+      { path: "body", message: "expected int32" },
+    ]);
+    expect(checkAgainstSchema(1e20, { format: "int64" })).toEqual([
+      { path: "body", message: "expected int64" },
+    ]);
+    expect(checkAgainstSchema(-20, { format: "int64" })).toEqual([]);
+
+    expect(checkAgainstSchema("abc", { format: "byte" })).toEqual([]);
+    expect(checkAgainstSchema(1, { type: "string", format: "email" })).toEqual([
+      { path: "body", message: "expected string, got integer" },
+    ]);
+  });
+
+  it("requires one anyOf match and exactly one oneOf match", () => {
+    const kinds = [{ type: "string" }, { type: "integer" }];
+    expect(checkAgainstSchema("a", { anyOf: kinds })).toEqual([]);
+    expect(checkAgainstSchema(1.5, { anyOf: kinds })).toEqual([
+      { path: "body", message: "value matched no anyOf schema" },
+    ]);
+
+    expect(checkAgainstSchema(1, { oneOf: kinds })).toEqual([]);
+    expect(checkAgainstSchema(true, { oneOf: kinds })).toEqual([
+      { path: "body", message: "value matched no oneOf schema" },
+    ]);
+    expect(checkAgainstSchema("a", { oneOf: [{ type: "string" }, { enum: ["a", "b"] }] })).toEqual([
+      { path: "body", message: "value matched more than one oneOf schema" },
+    ]);
+  });
+
+  it("collects allOf failures at the leaf path", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: {
+            allOf: [
+              { type: "object", required: ["price"], properties: { price: { type: "number" } } },
+              { type: "object", required: ["sku"], properties: { sku: { type: "string" } } },
+            ],
+          },
+        },
+      },
+    };
+
+    expect(checkAgainstSchema({ items: [{ price: 1, sku: "a" }, { price: "x" }] }, schema)).toEqual(
+      [
+        { path: "body.items[1].price", message: "expected number, got string" },
+        { path: "body.items[1].sku", message: 'missing required property "sku"' },
+      ],
+    );
+  });
+
+  it("puts a oneOf miss on the array slot", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: { oneOf: [{ type: "string" }, { type: "integer" }] },
+        },
+      },
+    };
+
+    expect(checkAgainstSchema({ items: ["a", 1, true, "b"] }, schema)).toEqual([
+      { path: "body.items[2]", message: "value matched no oneOf schema" },
+    ]);
+  });
+
   it("stops on a ref that only points at itself", () => {
     const schema = {
       type: "object",

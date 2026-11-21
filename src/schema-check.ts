@@ -1,6 +1,8 @@
 import { resolveLocalRefs } from "./refs.js";
 import { SpecError } from "./spec.js";
 
+const STRING_FORMATS = new Set(["date-time", "date", "email", "uuid", "uri"]);
+
 export type SchemaError = {
   path: string;
   message: string;
@@ -41,12 +43,18 @@ function checkNode(value: unknown, schema: unknown, path: string): SchemaError[]
     errors.push({ path, message: "value not in enum" });
   }
 
+  if (typeof schema.format === "string") {
+    const formatError = checkFormat(value, schema.format, path);
+    if (formatError) errors.push(formatError);
+  }
+
   if (isRecord(value)) errors.push(...checkObject(value, schema, path));
   if (Array.isArray(value) && schema.items !== undefined) {
     errors.push(...checkItems(value, schema.items, path));
   }
 
-  return errors;
+  errors.push(...checkComposition(value, schema, path));
+  return unique(errors);
 }
 
 function checkNull(schema: Record<string, unknown>, path: string): SchemaError[] {
@@ -112,6 +120,121 @@ function checkItems(value: unknown[], items: unknown, path: string): SchemaError
     errors.push(...checkNode(value[i], items, `${path}[${i}]`));
   }
   return errors;
+}
+
+function checkComposition(
+  value: unknown,
+  schema: Record<string, unknown>,
+  path: string,
+): SchemaError[] {
+  const errors: SchemaError[] = [];
+
+  if (Array.isArray(schema.allOf)) {
+    for (const sub of schema.allOf) errors.push(...checkNode(value, sub, path));
+  }
+
+  if (Array.isArray(schema.anyOf)) {
+    const ok = schema.anyOf.some((sub) => checkNode(value, sub, path).length === 0);
+    if (!ok) errors.push({ path, message: "value matched no anyOf schema" });
+  }
+
+  if (Array.isArray(schema.oneOf)) {
+    let matched = 0;
+    for (const sub of schema.oneOf) {
+      if (checkNode(value, sub, path).length === 0) matched += 1;
+    }
+    if (matched === 0) errors.push({ path, message: "value matched no oneOf schema" });
+    else if (matched > 1) errors.push({ path, message: "value matched more than one oneOf schema" });
+  }
+
+  return errors;
+}
+
+function checkFormat(value: unknown, format: string, path: string): SchemaError | undefined {
+  if (format === "int32" || format === "int64") {
+    if (typeof value !== "number" || !Number.isInteger(value) || !fitsInteger(value, format)) {
+      return { path, message: `expected ${format}` };
+    }
+    return;
+  }
+
+  if (!STRING_FORMATS.has(format)) return;
+  if (typeof value !== "string" || !stringFormatOk(value, format)) {
+    return { path, message: `expected ${format}` };
+  }
+}
+
+function fitsInteger(value: number, format: "int32" | "int64"): boolean {
+  if (format === "int32") return value >= -2147483648 && value <= 2147483647;
+  // 2^63-1 rounded to a float, so the ends are a little soft
+  const max = 9223372036854775807;
+  return value >= -max && value <= max;
+}
+
+function stringFormatOk(value: string, format: string): boolean {
+  switch (format) {
+    case "date-time":
+      return isDateTime(value);
+    case "date":
+      return isDate(value);
+    case "email":
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    case "uuid":
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+    case "uri":
+      return isUri(value);
+    default:
+      return true;
+  }
+}
+
+function isDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+function isDateTime(value: string): boolean {
+  const match = /^(\d{4}-\d{2}-\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|z|[+-]\d{2}:\d{2})$/.exec(
+    value,
+  );
+  if (!match || !isDate(match[1])) return false;
+  const hour = Number(match[2]);
+  const minute = Number(match[3]);
+  const second = Number(match[4]);
+  if (hour > 23 || minute > 59 || second > 60) return false;
+  const zone = match[6];
+  if (zone === "Z" || zone === "z") return true;
+  const offset = /^[+-](\d{2}):(\d{2})$/.exec(zone);
+  if (!offset) return false;
+  return Number(offset[1]) <= 23 && Number(offset[2]) <= 59;
+}
+
+function isUri(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol.length > 1;
+  } catch {
+    return false;
+  }
+}
+
+function unique(errors: SchemaError[]): SchemaError[] {
+  const seen = new Set<string>();
+  const out: SchemaError[] = [];
+  for (const error of errors) {
+    const key = `${error.path}\0${error.message}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(error);
+  }
+  return out;
 }
 
 function typeNames(schema: Record<string, unknown>): string[] {
