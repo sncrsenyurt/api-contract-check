@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { FlagError, parseFlags, usage } from "./flags.js";
 import { listOperations } from "./operations.js";
+import { pickOperations, selectionError } from "./pick-ops.js";
+import { exitCodeFor, recordFromCalls, summaryLines, writeReport } from "./report.js";
 import { runCalls } from "./run-calls.js";
 import { loadSpec, SpecError } from "./spec.js";
 
@@ -28,23 +30,33 @@ async function main(): Promise<void> {
 
   try {
     const doc = await loadSpec(parsed.spec);
-    const ops = listOperations(doc);
-    const results = await runCalls(ops, {
+    const listed = listOperations(doc);
+    const missed = selectionError(listed, parsed.only, parsed.skip);
+    if (missed) {
+      console.error(missed);
+      process.exitCode = 1;
+      return;
+    }
+
+    const startedAt = new Date();
+    const results = await runCalls(pickOperations(listed, parsed.only, parsed.skip), {
       baseUrl: parsed.baseUrl,
       headers: parsed.headers,
       timeoutMs: parsed.timeoutMs,
     });
-    const version = String(doc.openapi);
-    const noun = ops.length === 1 ? "operation" : "operations";
-    console.log(`loaded ${version}, ${ops.length} ${noun}`);
-    for (const result of results) {
-      const status = result.status === undefined ? "" : `  ${result.status}`;
-      const mark = result.ok ? "ok" : result.status === undefined ? "error" : "drift";
-      console.log(
-        `${result.method.toUpperCase()} ${result.path}  ${result.operationId}${status}  ${mark}`,
-      );
-      for (const message of result.messages) console.log(`  ${message}`);
-    }
+    const record = recordFromCalls(
+      {
+        spec: parsed.spec,
+        baseUrl: parsed.baseUrl,
+        openapi: String(doc.openapi),
+        startedAt: startedAt.toISOString(),
+        durationMs: Date.now() - startedAt.getTime(),
+      },
+      results,
+    );
+    await writeReport(parsed.outDir, record);
+    for (const line of summaryLines(record)) console.log(line);
+    process.exitCode = exitCodeFor(record);
   } catch (err) {
     if (err instanceof SpecError) {
       console.error(err.message);

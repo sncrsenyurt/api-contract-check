@@ -71,10 +71,10 @@ describe("checkResponse", () => {
 
   it("flags an unknown status and a mismatched content-type", () => {
     expect(checkResponse(op, 500, "application/json", "{}")).toEqual([
-      "status 500 is not documented",
+      { path: "status", message: "500 is not documented" },
     ]);
     expect(checkResponse(op, 200, "text/plain", "nope")).toEqual([
-      "content-type text/plain is not documented",
+      { path: "content-type", message: "text/plain is not documented" },
     ]);
   });
 });
@@ -114,8 +114,11 @@ describe("runCalls", () => {
         ["getHealth", 200, true],
         ["getOrder", 200, false],
       ]);
-      expect(results[0].messages).toEqual([]);
-      expect(results[1].messages).toEqual(["body.total expected number, got string"]);
+      expect(results[0].errors).toEqual([]);
+      expect(results[0].durationMs).toBeGreaterThanOrEqual(0);
+      expect(results[1].errors).toEqual([
+        { path: "body.total", message: "expected number, got string" },
+      ]);
     } finally {
       await server.close();
     }

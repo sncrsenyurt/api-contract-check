@@ -3,13 +3,19 @@ import { buildRequest, type CallSetup } from "./build-request.js";
 import type { Operation } from "./operations.js";
 import { checkAgainstSchema } from "./schema-check.js";
 
+export type CallError = {
+  path: string;
+  message: string;
+};
+
 export type CallResult = {
   operationId: string;
   method: string;
   path: string;
   status?: number;
   ok: boolean;
-  messages: string[];
+  errors: CallError[];
+  durationMs: number;
 };
 
 export async function runCalls(ops: Operation[], setup: CallSetup): Promise<CallResult[]> {
@@ -30,9 +36,9 @@ export function checkResponse(
   status: number,
   contentType: string,
   rawBody: string,
-): string[] {
+): CallError[] {
   const response = responseFor(op.responses, status);
-  if (!response) return [`status ${status} is not documented`];
+  if (!response) return [{ path: "status", message: `${status} is not documented` }];
 
   const content = isRecord(response.content) ? response.content : undefined;
   if (!content) return [];
@@ -40,7 +46,7 @@ export function checkResponse(
   const actual = bareType(contentType);
   const match = Object.entries(content).find(([type]) => bareType(type) === actual);
   if (!match) {
-    return [`content-type ${actual || "missing"} is not documented`];
+    return [{ path: "content-type", message: `${actual || "missing"} is not documented` }];
   }
 
   const media = match[1];
@@ -52,12 +58,12 @@ export function checkResponse(
     try {
       parsed = rawBody === "" ? null : JSON.parse(rawBody);
     } catch {
-      return ["response body is not json"];
+      return [{ path: "body", message: "response body is not json" }];
     }
-    return checkAgainstSchema(parsed, schema).map((error) => `${error.path} ${error.message}`);
+    return checkAgainstSchema(parsed, schema);
   }
 
-  return checkAgainstSchema(rawBody, schema).map((error) => `${error.path} ${error.message}`);
+  return checkAgainstSchema(rawBody, schema);
 }
 
 async function callOne(
@@ -71,6 +77,7 @@ async function callOne(
     method: op.method,
     path: op.path,
   };
+  const started = performance.now();
 
   try {
     const res = await ctx.fetch(built.url, {
@@ -82,10 +89,21 @@ async function callOne(
     const status = res.status();
     const contentType = res.headers()["content-type"] ?? "";
     const rawBody = await res.text();
-    const messages = checkResponse(op, status, contentType, rawBody);
-    return { ...base, status, ok: messages.length === 0, messages };
+    const errors = checkResponse(op, status, contentType, rawBody);
+    return {
+      ...base,
+      status,
+      ok: errors.length === 0,
+      errors,
+      durationMs: Math.round(performance.now() - started),
+    };
   } catch (err) {
-    return { ...base, ok: false, messages: [safeLine(err)] };
+    return {
+      ...base,
+      ok: false,
+      errors: [{ path: "request", message: safeLine(err) }],
+      durationMs: Math.round(performance.now() - started),
+    };
   }
 }
 
