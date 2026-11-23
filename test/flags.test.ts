@@ -27,6 +27,8 @@ describe("parseFlags", () => {
       ],
       outDir: "tmp/out",
       timeoutMs: 15000,
+      only: [],
+      skip: [],
     });
   });
 
@@ -37,6 +39,8 @@ describe("parseFlags", () => {
       outDir: "./contract-out",
       timeoutMs: 30000,
       headers: [],
+      only: [],
+      skip: [],
     });
   });
 
@@ -68,6 +72,27 @@ describe("parseFlags", () => {
   it("rejects a header that is not name:value", () => {
     expect(() => parseFlags([...base, "--header", "Bearer token"])).toThrow(/name:value/);
     expect(() => parseFlags([...base, "--header="])).toThrow(/needs a value/);
+  });
+
+  it("repeats --only and --skip", () => {
+    const parsed = parseFlags([
+      ...base,
+      "--only",
+      "getOrder",
+      "--only=POST /orders",
+      "--skip",
+      "GET /health",
+    ]);
+    expect(parsed).toMatchObject({
+      only: ["getOrder", "POST /orders"],
+      skip: ["GET /health"],
+    });
+  });
+
+  it("rejects an empty filter", () => {
+    expect(() => parseFlags([...base, "--only"])).toThrow(/--only needs a value/);
+    expect(() => parseFlags([...base, "--skip="])).toThrow(/--skip needs a value/);
+    expect(() => parseFlags([...base, "--only", "  "])).toThrow(/--only needs an operation/);
   });
 
   it("rejects unknown flags and extra paths", () => {

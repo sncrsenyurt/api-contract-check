@@ -19,6 +19,8 @@ export type ParsedArgs =
       headers: HeaderPair[];
       outDir: string;
       timeoutMs: number;
+      only: string[];
+      skip: string[];
     };
 
 const DEFAULT_OUT = "./contract-out";
@@ -32,6 +34,8 @@ export function usage(): string {
     "--header <name:value>   extra request header, can be repeated",
     "--out <dir>             report directory, default ./contract-out",
     "--timeout <ms>          request timeout in milliseconds, default 30000",
+    "--only <id or METHOD /path>   run just these, can be repeated",
+    "--skip <id or METHOD /path>   leave these out, can be repeated",
   ].join("\n");
 }
 
@@ -45,6 +49,8 @@ export function parseFlags(argv: string[]): ParsedArgs {
   let outDir = DEFAULT_OUT;
   let timeoutMs = DEFAULT_TIMEOUT_MS;
   const headers: HeaderPair[] = [];
+  const only: string[] = [];
+  const skip: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -78,6 +84,22 @@ export function parseFlags(argv: string[]): ParsedArgs {
       continue;
     }
 
+    if (arg === "--only" || arg.startsWith("--only=")) {
+      const value = readValue(argv, arg, i, "--only");
+      i = value.next;
+      if (!value.text.trim()) throw new FlagError("--only needs an operation");
+      only.push(value.text.trim());
+      continue;
+    }
+
+    if (arg === "--skip" || arg.startsWith("--skip=")) {
+      const value = readValue(argv, arg, i, "--skip");
+      i = value.next;
+      if (!value.text.trim()) throw new FlagError("--skip needs an operation");
+      skip.push(value.text.trim());
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new FlagError(`unknown flag ${arg}`);
     }
@@ -92,7 +114,7 @@ export function parseFlags(argv: string[]): ParsedArgs {
   if (!spec) throw new FlagError("missing spec path or url");
   if (!baseUrl) throw new FlagError("missing --base-url");
 
-  return { help: false, spec, baseUrl, headers, outDir, timeoutMs };
+  return { help: false, spec, baseUrl, headers, outDir, timeoutMs, only, skip };
 }
 
 function readValue(
