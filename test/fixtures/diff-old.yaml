@@ -1,0 +1,75 @@
+openapi: 3.0.3
+info:
+  title: Items
+  version: "1"
+paths:
+  /items:
+    get:
+      operationId: listItems
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, live, hold]
+      responses:
+        "200":
+          description: list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, empty]
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        price:
+                          $ref: "#/components/schemas/Price"
+                        sku:
+                          type: string
+    post:
+      operationId: createItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, qty]
+              properties:
+                name:
+                  type: string
+                qty:
+                  type: integer
+                status:
+                  type: string
+                  enum: [draft, live, hold]
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+  /items/{id}:
+    delete:
+      operationId: deleteItem
+      responses:
+        "204":
+          description: gone
+components:
+  schemas:
+    Price:
+      type: number
