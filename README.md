@@ -1,6 +1,6 @@
 # api-contract-check
 
-I point this at an OpenAPI 3 spec and a running API. It walks each operation, builds a request from the examples and parameters in the spec, sends it, and checks the live response against the contract: the status is documented, the content type matches, and the body fits the response schema. When something drifts I write a JSON record, print a short summary, and exit 2. A bad spec or a host I can't reach exits 1. A clean run exits 0. Later I also want a diff of two spec versions for breaking changes.
+I point this at an OpenAPI 3 spec and a running API. It walks each operation, builds a request from the examples and parameters in the spec, sends it, and checks the live response against the contract: the status is documented, the content type matches, and the body fits the response schema. When something drifts I write a JSON record, print a short summary, and exit 2. A bad spec or a host I can't reach exits 1. A clean run exits 0. I diff two specs with `api-contract-check diff old.yaml new.yaml`, and exit 2 when something breaks.
 
 ```bash
 api-contract-check ./openapi.yaml --base-url https://api.example.com

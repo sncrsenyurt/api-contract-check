@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FlagError, parseFlags } from "../src/flags.js";
+import { FlagError, parseDiffArgs, parseFlags } from "../src/flags.js";
 
 const base = ["orders.yaml", "--base-url", "https://api.example.com"];
 
@@ -93,6 +93,20 @@ describe("parseFlags", () => {
     expect(() => parseFlags([...base, "--only"])).toThrow(/--only needs a value/);
     expect(() => parseFlags([...base, "--skip="])).toThrow(/--skip needs a value/);
     expect(() => parseFlags([...base, "--only", "  "])).toThrow(/--only needs an operation/);
+  });
+
+  it("reads the two specs for diff", () => {
+    expect(parseDiffArgs(["old.yaml", "new.json"])).toEqual({
+      oldSpec: "old.yaml",
+      newSpec: "new.json",
+    });
+    expect(() => parseDiffArgs(["old.yaml"])).toThrow(/old spec and a new spec/);
+    expect(() => parseDiffArgs(["old.yaml", "new.json", "extra.yaml"])).toThrow(
+      /unexpected argument extra.yaml/,
+    );
+    expect(() => parseDiffArgs(["old.yaml", "--base-url", "https://api.example.com"])).toThrow(
+      /unknown flag --base-url/,
+    );
   });
 
   it("rejects unknown flags and extra paths", () => {

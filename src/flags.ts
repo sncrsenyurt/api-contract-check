@@ -29,6 +29,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 export function usage(): string {
   return [
     "api-contract-check <spec> --base-url <url> [options]",
+    "api-contract-check diff <old> <new>",
     "",
     "--base-url <url>        where the api is running",
     "--header <name:value>   extra request header, can be repeated",
@@ -115,6 +116,17 @@ export function parseFlags(argv: string[]): ParsedArgs {
   if (!baseUrl) throw new FlagError("missing --base-url");
 
   return { help: false, spec, baseUrl, headers, outDir, timeoutMs, only, skip };
+}
+
+export function parseDiffArgs(argv: string[]): { oldSpec: string; newSpec: string } {
+  const specs: string[] = [];
+  for (const arg of argv) {
+    if (arg.startsWith("-")) throw new FlagError(`unknown flag ${arg}`);
+    specs.push(arg);
+  }
+  if (specs.length < 2) throw new FlagError("diff needs an old spec and a new spec");
+  if (specs.length > 2) throw new FlagError(`unexpected argument ${specs[2]}`);
+  return { oldSpec: specs[0], newSpec: specs[1] };
 }
 
 function readValue(
