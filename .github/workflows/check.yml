@@ -1,0 +1,52 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: install playwright
+        run: npx playwright install chromium
+      - name: check the demo api
+        run: |
+          node demo/server.mjs &
+          server=$!
+          node --input-type=module -e '
+            for (let i = 0; i < 25; i++) {
+              try {
+                const res = await fetch("http://127.0.0.1:4010/health");
+                if (res.ok) process.exit(0);
+              } catch {}
+              await new Promise((r) => setTimeout(r, 200));
+            }
+            process.exit(1);
+          '
+          set +e
+          node dist/contract-check.js demo/openapi.yaml \
+            --base-url http://127.0.0.1:4010 \
+            --out demo-out \
+            --timeout 5000
+          code=$?
+          set -e
+          kill "$server" || true
+          if [ "$code" -ne 2 ]; then
+            echo "expected exit 2, got $code"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contract-report
+          path: demo-out/report.json
+          if-no-files-found: warn
